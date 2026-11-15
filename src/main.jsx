@@ -35,6 +35,16 @@ Amplify.configure({
       region: 'ap-south-1',
     },
   },
+  
+API: {
+  GraphQL: {
+    endpoint:
+      'https://ycfhhwzktfejdmflgdx5qwp7ze.appsync-api.ap-south-1.amazonaws.com/graphql',
+    region: 'ap-south-1',
+    defaultAuthMode: 'userPool',
+  },
+},
+
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(

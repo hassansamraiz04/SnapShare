@@ -1,7 +1,8 @@
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { uploadData, getUrl, list } from 'aws-amplify/storage';
+import { uploadData, getUrl } from 'aws-amplify/storage';
+import client from '../../dataClient';
 import './PhotoDashboard.css';
 
 type PhotoDashboardProps = {
@@ -11,11 +12,57 @@ type PhotoDashboardProps = {
   onSignOut: () => void;
 };
 
+type PhotoRecord = {
+  id: string;
+  title: string;
+  description?: string | null;
+  imageKey: string;
+  fileName: string;
+  contentType?: string | null;
+  createdAt: string;
+};
+
+type GraphQLResponse<T> = {
+  data?: T;
+  errors?: { message: string }[];
+};
+
 type Photo = {
   id: string;
   name: string;
   url: string;
 };
+
+const LIST_PHOTOS = `
+  query ListPhotos($limit: Int) {
+    listPhotos(limit: $limit) {
+      items {
+        id
+        title
+        description
+        imageKey
+        fileName
+        contentType
+        createdAt
+      }
+      nextToken
+    }
+  }
+`;
+
+const CREATE_PHOTO = `
+  mutation CreatePhoto($input: CreatePhotoInput!) {
+    createPhoto(input: $input) {
+      id
+      title
+      description
+      imageKey
+      fileName
+      contentType
+      createdAt
+    }
+  }
+`;
 
 function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -31,25 +78,41 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
     return () => URL.revokeObjectURL(preview);
   }, [preview]);
 
-  async function loadPhotos() {
+  const loadPhotos = useCallback(async () => {
     try {
+      setLoadingPhotos(true);
       setError('');
 
-      const result = await list({
-        path: 'photos/',
-      });
+      const response = (await client.graphql({
+        query: LIST_PHOTOS,
+        variables: {
+          limit: 100,
+        },
+        authMode: 'userPool',
+      })) as GraphQLResponse<{
+        listPhotos: {
+          items: PhotoRecord[];
+          nextToken?: string | null;
+        };
+      }>;
+
+      if (response.errors?.length) {
+        throw new Error(
+          response.errors.map((item) => item.message).join('; ')
+        );
+      }
+
+      const records = response.data?.listPhotos?.items ?? [];
 
       const loadedPhotos = await Promise.all(
-        result.items.map(async (item) => {
+        records.map(async (record) => {
           const imageResult = await getUrl({
-            path: item.path,
+            path: record.imageKey,
           });
 
-          const fileName = item.path.split('/').pop() || 'Photo';
-
           return {
-            id: item.path,
-            name: fileName,
+            id: record.id,
+            name: record.fileName,
             url: imageResult.url.toString(),
           };
         })
@@ -57,16 +120,18 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
       setPhotos(loadedPhotos.reverse());
     } catch (err) {
-      console.error('Error loading photos:', err);
-      setError('Could not load photos. Please check your AWS storage permissions.');
+      console.error('Error loading photos from GraphQL:', err);
+      setError(
+        'Could not load photos from the database. Please check your GraphQL permissions.'
+      );
     } finally {
       setLoadingPhotos(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadPhotos();
-  }, []);
+    void loadPhotos();
+  }, [loadPhotos]);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -93,9 +158,14 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
       setUploading(true);
       setError('');
 
-      const safeFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeFileName = selectedFile.name.replace(
+        /[^a-zA-Z0-9._-]/g,
+        '_'
+      );
+
       const filePath = `photos/${Date.now()}-${safeFileName}`;
 
+      // Step 1: Upload the actual image to S3.
       const uploadTask = uploadData({
         path: filePath,
         data: selectedFile,
@@ -106,15 +176,46 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
       await uploadTask.result;
 
+      // Step 2: Save image details in the GraphQL database.
+      const title = selectedFile.name.replace(/\.[^/.]+$/, '');
+
+      const response = (await client.graphql({
+        query: CREATE_PHOTO,
+        variables: {
+          input: {
+            title,
+            imageKey: filePath,
+            fileName: selectedFile.name,
+            contentType: selectedFile.type,
+          },
+        },
+        authMode: 'userPool',
+      })) as GraphQLResponse<{
+        createPhoto: PhotoRecord | null;
+      }>;
+
+      if (response.errors?.length) {
+        throw new Error(
+          response.errors.map((item) => item.message).join('; ')
+        );
+      }
+
+      if (!response.data?.createPhoto) {
+        throw new Error('Photo information was not saved in the database.');
+      }
+
       setSelectedFile(null);
       setPreview('');
 
       await loadPhotos();
 
-      alert('Photo uploaded successfully!');
+      alert('Photo uploaded and saved successfully!');
     } catch (err) {
-      console.error('Upload error:', err);
-      setError('Photo upload failed. Please check your AWS storage permissions and try again.');
+      console.error('Upload or GraphQL error:', err);
+
+      setError(
+        'Photo upload or database save failed. Check the browser console for details.'
+      );
     } finally {
       setUploading(false);
     }
