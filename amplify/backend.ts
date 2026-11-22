@@ -37,7 +37,7 @@ storageBucketResource.addPropertyOverride("CorsConfiguration.CorsRules", [
     AllowedMethods: ["GET"],
     AllowedHeaders: ["*"],
     ExposedHeaders: ["Content-Disposition", "ETag"],
-    MaxAgeSeconds: 3000,
+    MaxAge: 3000,
   },
 ]);
 
