@@ -88,12 +88,63 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
   const [deletingPhotoId, setDeletingPhotoId] = useState("");
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   const [error, setError] = useState("");
+  const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
+  const [downloadingPhoto, setDownloadingPhoto] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
 
   useEffect(() => {
     if (!preview) return;
 
     return () => URL.revokeObjectURL(preview);
   }, [preview]);
+
+  useEffect(() => {
+    if (!viewingPhoto) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setViewingPhoto(null);
+        setDownloadError("");
+      }
+    }
+
+    document.body.classList.add("photo-viewer-open");
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.classList.remove("photo-viewer-open");
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [viewingPhoto]);
+
+  async function handleDownload(photo: Photo) {
+    try {
+      setDownloadingPhoto(true);
+      setDownloadError("");
+
+      const { url } = await getUrl({
+        path: photo.imageKey,
+        options: {
+          contentDisposition: {
+            type: "attachment",
+            filename: photo.name,
+          },
+        },
+      });
+      const link = document.createElement("a");
+      link.href = url.toString();
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (downloadFailure) {
+      console.error("Photo download failed:", downloadFailure);
+      setDownloadError(
+        "Could not prepare this photo for download. Please try again.",
+      );
+    } finally {
+      setDownloadingPhoto(false);
+    }
+  }
 
   const loadPhotos = useCallback(async () => {
     try {
@@ -332,7 +383,9 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
             <span className="eyebrow">YOUR LITTLE CORNER</span>
             <h1>
               Good to see you
-              <span className="welcome-name">, {displayName.split(" ")[0]}.</span>
+              <span className="welcome-name">
+                , {displayName.split(" ")[0]}.
+              </span>
             </h1>
             <p>A home for the photos you want to keep close.</p>
           </div>
@@ -353,12 +406,16 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
             <label className="file-input-label">
               <input type="file" accept="image/*" onChange={handleFileChange} />
-              <span className="upload-icon" aria-hidden="true">+</span>
+              <span className="upload-icon" aria-hidden="true">
+                +
+              </span>
               <span>
                 <strong>Choose a photo</strong>
                 <small>JPG, PNG or another image</small>
               </span>
-              <span className="choose-arrow" aria-hidden="true">↗</span>
+              <span className="choose-arrow" aria-hidden="true">
+                ↗
+              </span>
             </label>
 
             {preview && (
@@ -390,7 +447,11 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
               <span />
               <span />
             </div>
-            <p>Little things<br />worth remembering.</p>
+            <p>
+              Little things
+              <br />
+              worth remembering.
+            </p>
           </div>
         </section>
 
@@ -400,7 +461,9 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
               <span className="gallery-kicker">THE GOOD STUFF</span>
               <h2>Your collection</h2>
             </div>
-            {photos.length > 0 && <span className="gallery-total">{photos.length} items</span>}
+            {photos.length > 0 && (
+              <span className="gallery-total">{photos.length} items</span>
+            )}
           </div>
 
           {loadingPhotos ? (
@@ -411,7 +474,9 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
             </div>
           ) : photos.length === 0 ? (
             <div className="empty-gallery">
-              <div className="empty-icon" aria-hidden="true">✳</div>
+              <div className="empty-icon" aria-hidden="true">
+                ✳
+              </div>
               <h3>A fresh page</h3>
               <p>Your collection is waiting for its first photo.</p>
             </div>
@@ -421,6 +486,29 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
                 <article className="photo-card" key={photo.id}>
                   <div className="photo-image">
                     <img src={photo.url} alt={photo.name} loading="lazy" />
+                    <button
+                      className="photo-view-button"
+                      type="button"
+                      onClick={() => {
+                        setViewingPhoto(photo);
+                        setDownloadError("");
+                      }}
+                      aria-label={`View ${photo.name}`}
+                      title={`View ${photo.name}`}
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="10.8" cy="10.8" r="6.8" />
+                        <path d="m16 16 4.2 4.2M10.8 7.5v6.6M7.5 10.8h6.6" />
+                      </svg>
+                    </button>
                   </div>
 
                   <div className="photo-info">
@@ -446,6 +534,82 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
           )}
         </section>
       </main>
+
+      {viewingPhoto && (
+        <div
+          className="photo-viewer-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setViewingPhoto(null);
+              setDownloadError("");
+            }
+          }}
+        >
+          <section
+            className="photo-viewer"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Photo viewer: ${viewingPhoto.name}`}
+          >
+            <div className="photo-viewer-image">
+              <img src={viewingPhoto.url} alt={viewingPhoto.name} />
+            </div>
+            <aside className="photo-viewer-sidebar">
+              <button
+                className="photo-viewer-close"
+                type="button"
+                onClick={() => {
+                  setViewingPhoto(null);
+                  setDownloadError("");
+                }}
+                aria-label="Close photo viewer"
+                title="Close"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                >
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+              <div className="photo-viewer-details">
+                <span className="gallery-kicker">YOUR COLLECTION</span>
+                <h2>{viewingPhoto.name}</h2>
+                <p>One of the moments you chose to keep.</p>
+              </div>
+              <button
+                className="photo-download-button"
+                type="button"
+                onClick={() => void handleDownload(viewingPhoto)}
+                disabled={downloadingPhoto}
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+                </svg>
+                {downloadingPhoto ? "Preparing download..." : "Download photo"}
+              </button>
+              {downloadError && (
+                <p className="photo-download-error" role="alert">
+                  {downloadError}
+                </p>
+              )}
+            </aside>
+          </section>
+        </div>
+      )}
 
       <footer className="footer">Made for the moments you want to keep.</footer>
     </div>

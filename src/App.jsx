@@ -34,9 +34,7 @@ function App() {
           displayName =
             claims.name ||
             attributes.name ||
-            [claims.given_name, claims.family_name]
-              .filter(Boolean)
-              .join(" ") ||
+            [claims.given_name, claims.family_name].filter(Boolean).join(" ") ||
             [attributes.given_name, attributes.family_name]
               .filter(Boolean)
               .join(" ") ||

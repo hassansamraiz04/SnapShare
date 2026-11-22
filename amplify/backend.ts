@@ -11,6 +11,7 @@ import {
   LambdaIntegration,
   RestApi,
 } from "aws-cdk-lib/aws-apigateway";
+import { CfnBucket } from "aws-cdk-lib/aws-s3";
 
 const backend = defineBackend({
   auth,
@@ -18,6 +19,27 @@ const backend = defineBackend({
   storage,
   adminStats,
 });
+
+const storageBucketResource =
+  backend.storage.resources.bucket.node.defaultChild;
+
+if (!(storageBucketResource instanceof CfnBucket)) {
+  throw new Error("Could not configure CORS for the SnapShare storage bucket.");
+}
+
+storageBucketResource.addPropertyOverride("CorsConfiguration.CorsRules", [
+  {
+    AllowedOrigins: [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "https://main.dspyzzl5a2d7f.amplifyapp.com",
+    ],
+    AllowedMethods: ["GET"],
+    AllowedHeaders: ["*"],
+    ExposedHeaders: ["Content-Disposition", "ETag"],
+    MaxAgeSeconds: 3000,
+  },
+]);
 
 const apiStack = backend.createStack("snapshare-rest-api");
 

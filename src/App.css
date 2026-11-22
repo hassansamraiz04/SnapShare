@@ -3,7 +3,11 @@
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(ellipse at 9% 12%, rgba(111, 97, 226, 0.08), transparent 34%),
+    radial-gradient(
+      ellipse at 9% 12%,
+      rgba(111, 97, 226, 0.08),
+      transparent 34%
+    ),
     #fbfaff;
 }
 
