@@ -7,7 +7,7 @@ function Login({ onGoogleLogin }: LoginProps) {
     <div className="app">
       <nav className="navbar">
         <a className="brand" href="/">
-          <span className="brand-icon">S</span>
+          <img className="brand-icon" src="/favicon.png" alt="" />
           SnapShare
         </a>
       </nav>
@@ -15,29 +15,34 @@ function Login({ onGoogleLogin }: LoginProps) {
       <main className="main-content">
         <section className="login-layout">
           <div className="login-info">
-            <span className="eyebrow">YOUR MOMENTS, YOUR STORY</span>
+            <span className="eyebrow">A home for your photographs</span>
 
-            <h1>Every picture has a story worth sharing.</h1>
+            <h1>
+              Keep the moments
+              <br />
+              that make you <em>smile.</em>
+            </h1>
 
             <p>
-              Keep your favorite memories together and share the moments that
-              matter with SnapShare.
+              A little corner of the internet for your favorite photos. Save
+              them somewhere lovely, and come back whenever you like.
             </p>
 
             <div className="feature-points">
-              <span>✓ Simple photo sharing</span>
-              <span>✓ Your personal photo collection</span>
-              <span>✓ Secure Google sign-in</span>
+              <span>Your own private gallery</span>
+              <span>Simple, secure sign-in</span>
             </div>
           </div>
 
           <div className="login-card">
-            <div className="card-logo">S</div>
+            <div className="card-logo">
+              <img src="/favicon.png" alt="" />
+            </div>
 
-            <h2>Welcome to SnapShare</h2>
+            <h2>Welcome to your gallery</h2>
 
             <p className="card-description">
-              Sign in to start sharing your moments.
+              Sign in and pick up right where your memories are.
             </p>
 
             <button className="google-button" onClick={onGoogleLogin}>
@@ -45,9 +50,7 @@ function Login({ onGoogleLogin }: LoginProps) {
               Continue with Google
             </button>
 
-            <div className="security-note">
-              Secure authentication powered by AWS Cognito
-            </div>
+            <div className="security-note">Your photos, safe and sound</div>
           </div>
         </section>
       </main>

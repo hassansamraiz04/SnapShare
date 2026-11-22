@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
-import { uploadData, getUrl } from "aws-amplify/storage";
+import { uploadData, getUrl, remove } from "aws-amplify/storage";
 import client from "../../dataClient";
 import "./PhotoDashboard.css";
 
 type PhotoDashboardProps = {
   user: {
     username: string;
+    displayName?: string;
   };
   onSignOut: () => void;
 };
@@ -31,6 +32,7 @@ type Photo = {
   id: string;
   name: string;
   url: string;
+  imageKey: string;
 };
 
 const LIST_PHOTOS = `
@@ -64,11 +66,26 @@ const CREATE_PHOTO = `
   }
 `;
 
+const DELETE_PHOTO = `
+  mutation DeletePhoto($input: DeletePhotoInput!) {
+    deletePhoto(input: $input) {
+      id
+    }
+  }
+`;
+
 function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
+  const displayName =
+    user.displayName && !/^google[_-]/i.test(user.displayName)
+      ? user.displayName
+      : user.username && !/^google[_-]/i.test(user.username)
+        ? user.username
+        : "SnapShare member";
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState("");
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   const [error, setError] = useState("");
 
@@ -113,10 +130,10 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
               id: record.id,
               name: record.fileName,
               url: imageResult.url.toString(),
+              imageKey: record.imageKey,
             };
           } catch (err) {
             console.warn(`Could not access photo ${record.fileName}:`, err);
-
             return null;
           }
         }),
@@ -183,7 +200,6 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
       const filePath = `photos/${identityId}/${Date.now()}-${safeFileName}`;
 
-      // Step 1: Upload the image to the user's private S3 folder.
       const uploadTask = uploadData({
         path: filePath,
         data: selectedFile,
@@ -194,7 +210,6 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
       await uploadTask.result;
 
-      // Step 2: Save the image details in the GraphQL database.
       const title = selectedFile.name.replace(/\.[^/.]+$/, "");
 
       const response = (await client.graphql({
@@ -237,18 +252,75 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
     }
   }
 
+  async function handleDelete(photo: Photo) {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${photo.name}"? This cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingPhotoId(photo.id);
+      setError("");
+
+      // Step 1: Delete the photo record from GraphQL.
+      const response = (await client.graphql({
+        query: DELETE_PHOTO,
+        variables: {
+          input: {
+            id: photo.id,
+          },
+        },
+        authMode: "userPool",
+      })) as GraphQLResponse<{
+        deletePhoto: { id: string } | null;
+      }>;
+
+      if (response.errors?.length) {
+        throw new Error(response.errors.map((item) => item.message).join("; "));
+      }
+
+      if (!response.data?.deletePhoto) {
+        throw new Error("Photo record could not be deleted.");
+      }
+
+      // Step 2: Delete the actual image from S3.
+      try {
+        await remove({
+          path: photo.imageKey,
+        });
+      } catch (storageError) {
+        console.error("S3 image deletion failed:", storageError);
+        setPhotos((current) => current.filter((item) => item.id !== photo.id));
+        setError(
+          "The photo record was deleted, but its S3 image could not be removed.",
+        );
+        return;
+      }
+
+      setPhotos((current) => current.filter((item) => item.id !== photo.id));
+    } catch (err) {
+      console.error("Photo deletion failed:", err);
+      setError("Could not delete this photo. Please try again.");
+    } finally {
+      setDeletingPhotoId("");
+    }
+  }
+
   return (
     <div className="dashboard">
       <nav className="navbar">
         <a className="brand" href="/">
-          <span className="brand-icon">S</span>
+          <img className="brand-icon" src="/favicon.png" alt="" />
           SnapShare
         </a>
 
         <div className="nav-right">
-          <span className="user-name">{user.username}</span>
+          <span className="user-name" title={displayName}>
+            {displayName}
+          </span>
 
-          <button className="logout-button" onClick={onSignOut}>
+          <button className="logout-button" onClick={onSignOut} type="button">
             Sign out
           </button>
         </div>
@@ -256,75 +328,117 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
       <main className="dashboard-content">
         <section className="dashboard-heading">
-          <div>
-            <span className="eyebrow">YOUR PERSONAL SPACE</span>
-            <h1>Your photo collection</h1>
-            <p>Keep your favourite moments together.</p>
+          <div className="dashboard-welcome">
+            <span className="eyebrow">YOUR LITTLE CORNER</span>
+            <h1>
+              Good to see you
+              <span className="welcome-name">, {displayName.split(" ")[0]}.</span>
+            </h1>
+            <p>A home for the photos you want to keep close.</p>
           </div>
 
-          <span className="photo-count">{photos.length} photos</span>
+          <div className="photo-count" aria-live="polite">
+            <strong>{photos.length}</strong>
+            <span>{photos.length === 1 ? "photo saved" : "photos saved"}</span>
+          </div>
         </section>
 
         <section className="upload-card">
-          <div className="upload-heading">
-            <h2>Share a new moment</h2>
-            <p>Select an image to upload it to your SnapShare gallery.</p>
-          </div>
-
-          <label className="file-input-label">
-            <input type="file" accept="image/*" onChange={handleFileChange} />
-            <span className="upload-icon">+</span>
-            <strong>Choose a photo</strong>
-            <span>JPG, PNG or other image formats</span>
-          </label>
-
-          {preview && (
-            <div className="preview-section">
-              <img src={preview} alt="Selected preview" />
-
-              <div className="preview-details">
-                <strong>{selectedFile?.name}</strong>
-                <span>Ready to upload</span>
-              </div>
-
-              <button
-                className="primary-button"
-                onClick={handleUpload}
-                disabled={uploading}
-              >
-                {uploading ? "Uploading..." : "Upload photo"}
-              </button>
+          <div className="upload-copy">
+            <span className="upload-kicker">ADD TO YOUR COLLECTION</span>
+            <div className="upload-heading">
+              <h2>Save a new moment</h2>
+              <p>Choose a photo from your device to add it to your gallery.</p>
             </div>
-          )}
 
-          {error && <p className="upload-error">{error}</p>}
+            <label className="file-input-label">
+              <input type="file" accept="image/*" onChange={handleFileChange} />
+              <span className="upload-icon" aria-hidden="true">+</span>
+              <span>
+                <strong>Choose a photo</strong>
+                <small>JPG, PNG or another image</small>
+              </span>
+              <span className="choose-arrow" aria-hidden="true">↗</span>
+            </label>
+
+            {preview && (
+              <div className="preview-section">
+                <img src={preview} alt="Selected preview" />
+
+                <div className="preview-details">
+                  <strong>{selectedFile?.name}</strong>
+                  <span>Ready to be added</span>
+                </div>
+
+                <button
+                  className="primary-button"
+                  onClick={handleUpload}
+                  disabled={uploading}
+                  type="button"
+                >
+                  {uploading ? "Uploading..." : "Upload photo"}
+                </button>
+              </div>
+            )}
+
+            {error && <p className="upload-error">{error}</p>}
+          </div>
+          <div className="upload-art" aria-hidden="true">
+            <div className="art-sun" />
+            <div className="art-frame">
+              <span />
+              <span />
+              <span />
+            </div>
+            <p>Little things<br />worth remembering.</p>
+          </div>
         </section>
 
         <section className="gallery-section">
           <div className="gallery-heading">
             <div>
-              <h2>Your gallery</h2>
-              <p>Your photos are stored securely in AWS S3.</p>
+              <span className="gallery-kicker">THE GOOD STUFF</span>
+              <h2>Your collection</h2>
             </div>
+            {photos.length > 0 && <span className="gallery-total">{photos.length} items</span>}
           </div>
 
           {loadingPhotos ? (
             <div className="empty-gallery">
-              <h3>Loading your photos...</h3>
+              <span className="loading-mark" aria-hidden="true" />
+              <h3>Gathering your photos</h3>
+              <p>Your gallery will be ready in a moment.</p>
             </div>
           ) : photos.length === 0 ? (
             <div className="empty-gallery">
-              <div className="empty-icon">▧</div>
-              <h3>No photos yet</h3>
-              <p>Upload your first photo to get started.</p>
+              <div className="empty-icon" aria-hidden="true">✳</div>
+              <h3>A fresh page</h3>
+              <p>Your collection is waiting for its first photo.</p>
             </div>
           ) : (
             <div className="photo-grid">
               {photos.map((photo) => (
                 <article className="photo-card" key={photo.id}>
-                  <img src={photo.url} alt={photo.name} />
+                  <div className="photo-image">
+                    <img src={photo.url} alt={photo.name} loading="lazy" />
+                  </div>
+
                   <div className="photo-info">
                     <strong>{photo.name}</strong>
+
+                    <button
+                      className="photo-delete-button"
+                      onClick={() => void handleDelete(photo)}
+                      type="button"
+                      aria-label={`Delete ${photo.name}`}
+                      disabled={
+                        deletingPhotoId === photo.id || deletingPhotoId !== ""
+                      }
+                    >
+                      {deletingPhotoId === photo.id
+                        ? "Deleting..."
+                        : "Delete photo"}
+                    </button>
                   </div>
                 </article>
               ))}
@@ -333,7 +447,7 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
         </section>
       </main>
 
-      <footer className="footer">© 2026 SnapShare. Share your moments.</footer>
+      <footer className="footer">Made for the moments you want to keep.</footer>
     </div>
   );
 }
