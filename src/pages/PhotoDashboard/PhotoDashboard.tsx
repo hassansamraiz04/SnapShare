@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
+import { fetchAuthSession } from "aws-amplify/auth";
 import { uploadData, getUrl } from "aws-amplify/storage";
 import client from "../../dataClient";
 import "./PhotoDashboard.css";
@@ -103,19 +104,35 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
       const loadedPhotos = await Promise.all(
         records.map(async (record) => {
-          const imageResult = await getUrl({
-            path: record.imageKey,
-          });
+          try {
+            const imageResult = await getUrl({
+              path: record.imageKey,
+            });
 
-          return {
-            id: record.id,
-            name: record.fileName,
-            url: imageResult.url.toString(),
-          };
+            return {
+              id: record.id,
+              name: record.fileName,
+              url: imageResult.url.toString(),
+            };
+          } catch (err) {
+            console.warn(`Could not access photo ${record.fileName}:`, err);
+
+            return null;
+          }
         }),
       );
 
-      setPhotos(loadedPhotos.reverse());
+      const availablePhotos = loadedPhotos.filter(
+        (photo): photo is Photo => photo !== null,
+      );
+
+      setPhotos(availablePhotos.reverse());
+
+      if (availablePhotos.length < records.length) {
+        setError(
+          "Some older photos are stored in the previous shared folder. Please upload them again to your personal gallery.",
+        );
+      }
     } catch (err) {
       console.error("Error loading photos from GraphQL:", err);
       setError(
@@ -155,11 +172,18 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
       setUploading(true);
       setError("");
 
+      const session = await fetchAuthSession();
+      const identityId = session.identityId;
+
+      if (!identityId) {
+        throw new Error("Could not get the signed-in user's identity ID.");
+      }
+
       const safeFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-      const filePath = `photos/${Date.now()}-${safeFileName}`;
+      const filePath = `photos/${identityId}/${Date.now()}-${safeFileName}`;
 
-      // Step 1: Upload the actual image to S3.
+      // Step 1: Upload the image to the user's private S3 folder.
       const uploadTask = uploadData({
         path: filePath,
         data: selectedFile,
@@ -170,7 +194,7 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
       await uploadTask.result;
 
-      // Step 2: Save image details in the GraphQL database.
+      // Step 2: Save the image details in the GraphQL database.
       const title = selectedFile.name.replace(/\.[^/.]+$/, "");
 
       const response = (await client.graphql({

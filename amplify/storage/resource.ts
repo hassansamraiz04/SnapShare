@@ -4,6 +4,8 @@ export const storage = defineStorage({
   name: "snapSharePhotos",
 
   access: (allow) => ({
-    "photos/*": [allow.authenticated.to(["read", "write"])],
+    "photos/{entity_id}/*": [
+      allow.entity("identity").to(["read", "write", "delete"]),
+    ],
   }),
 });

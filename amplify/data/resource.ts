@@ -9,10 +9,7 @@ const schema = a.schema({
       fileName: a.string().required(),
       contentType: a.string(),
     })
-    .authorization((allow) => [
-      allow.authenticated().to(["read"]),
-      allow.owner(),
-    ]),
+    .authorization((allow) => [allow.owner()]),
 });
 
 export type Schema = ClientSchema<typeof schema>;
