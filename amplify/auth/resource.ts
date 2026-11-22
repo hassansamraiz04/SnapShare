@@ -1,5 +1,5 @@
-
 import { defineAuth, secret } from '@aws-amplify/backend';
+import { postAuthentication } from './post-authentication/resource';
 
 export const auth = defineAuth({
   loginWith: {
@@ -19,4 +19,12 @@ export const auth = defineAuth({
       ],
     },
   },
+
+  triggers: {
+    postAuthentication,
+  },
+
+  access: (allow) => [
+    allow.resource(postAuthentication).to(['addUserToGroup']),
+  ],
 });
