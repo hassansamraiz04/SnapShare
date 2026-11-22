@@ -1,13 +1,8 @@
+import { useEffect, useState } from "react";
+import { signInWithRedirect, getCurrentUser, signOut } from "aws-amplify/auth";
 
-import { useEffect, useState } from 'react';
-import {
-  signInWithRedirect,
-  getCurrentUser,
-  signOut,
-} from 'aws-amplify/auth';
-
-import Login from './pages/Login/Login';
-import PhotoDashboard from './pages/PhotoDashboard/PhotoDashboard';
+import Login from "./pages/Login/Login";
+import PhotoDashboard from "./pages/PhotoDashboard/PhotoDashboard";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -21,7 +16,7 @@ function App() {
   }, []);
 
   async function handleGoogleLogin() {
-    await signInWithRedirect({ provider: 'Google' });
+    await signInWithRedirect({ provider: "Google" });
   }
 
   async function handleLogout() {

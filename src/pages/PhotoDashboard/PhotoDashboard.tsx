@@ -1,9 +1,8 @@
-
-import { useCallback, useEffect, useState } from 'react';
-import type { ChangeEvent } from 'react';
-import { uploadData, getUrl } from 'aws-amplify/storage';
-import client from '../../dataClient';
-import './PhotoDashboard.css';
+import { useCallback, useEffect, useState } from "react";
+import type { ChangeEvent } from "react";
+import { uploadData, getUrl } from "aws-amplify/storage";
+import client from "../../dataClient";
+import "./PhotoDashboard.css";
 
 type PhotoDashboardProps = {
   user: {
@@ -66,11 +65,11 @@ const CREATE_PHOTO = `
 
 function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState('');
+  const [preview, setPreview] = useState("");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!preview) return;
@@ -81,14 +80,14 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
   const loadPhotos = useCallback(async () => {
     try {
       setLoadingPhotos(true);
-      setError('');
+      setError("");
 
       const response = (await client.graphql({
         query: LIST_PHOTOS,
         variables: {
           limit: 100,
         },
-        authMode: 'userPool',
+        authMode: "userPool",
       })) as GraphQLResponse<{
         listPhotos: {
           items: PhotoRecord[];
@@ -97,9 +96,7 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
       }>;
 
       if (response.errors?.length) {
-        throw new Error(
-          response.errors.map((item) => item.message).join('; ')
-        );
+        throw new Error(response.errors.map((item) => item.message).join("; "));
       }
 
       const records = response.data?.listPhotos?.items ?? [];
@@ -115,14 +112,14 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
             name: record.fileName,
             url: imageResult.url.toString(),
           };
-        })
+        }),
       );
 
       setPhotos(loadedPhotos.reverse());
     } catch (err) {
-      console.error('Error loading photos from GraphQL:', err);
+      console.error("Error loading photos from GraphQL:", err);
       setError(
-        'Could not load photos from the database. Please check your GraphQL permissions.'
+        "Could not load photos from the database. Please check your GraphQL permissions.",
       );
     } finally {
       setLoadingPhotos(false);
@@ -138,30 +135,27 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
 
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file.');
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
       return;
     }
 
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
-    setError('');
+    setError("");
   }
 
   async function handleUpload() {
     if (!selectedFile) {
-      alert('Please select a photo first.');
+      alert("Please select a photo first.");
       return;
     }
 
     try {
       setUploading(true);
-      setError('');
+      setError("");
 
-      const safeFileName = selectedFile.name.replace(
-        /[^a-zA-Z0-9._-]/g,
-        '_'
-      );
+      const safeFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
       const filePath = `photos/${Date.now()}-${safeFileName}`;
 
@@ -177,7 +171,7 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
       await uploadTask.result;
 
       // Step 2: Save image details in the GraphQL database.
-      const title = selectedFile.name.replace(/\.[^/.]+$/, '');
+      const title = selectedFile.name.replace(/\.[^/.]+$/, "");
 
       const response = (await client.graphql({
         query: CREATE_PHOTO,
@@ -189,32 +183,30 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
             contentType: selectedFile.type,
           },
         },
-        authMode: 'userPool',
+        authMode: "userPool",
       })) as GraphQLResponse<{
         createPhoto: PhotoRecord | null;
       }>;
 
       if (response.errors?.length) {
-        throw new Error(
-          response.errors.map((item) => item.message).join('; ')
-        );
+        throw new Error(response.errors.map((item) => item.message).join("; "));
       }
 
       if (!response.data?.createPhoto) {
-        throw new Error('Photo information was not saved in the database.');
+        throw new Error("Photo information was not saved in the database.");
       }
 
       setSelectedFile(null);
-      setPreview('');
+      setPreview("");
 
       await loadPhotos();
 
-      alert('Photo uploaded and saved successfully!');
+      alert("Photo uploaded and saved successfully!");
     } catch (err) {
-      console.error('Upload or GraphQL error:', err);
+      console.error("Upload or GraphQL error:", err);
 
       setError(
-        'Photo upload or database save failed. Check the browser console for details.'
+        "Photo upload or database save failed. Check the browser console for details.",
       );
     } finally {
       setUploading(false);
@@ -256,11 +248,7 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
           </div>
 
           <label className="file-input-label">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-            />
+            <input type="file" accept="image/*" onChange={handleFileChange} />
             <span className="upload-icon">+</span>
             <strong>Choose a photo</strong>
             <span>JPG, PNG or other image formats</span>
@@ -280,7 +268,7 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
                 onClick={handleUpload}
                 disabled={uploading}
               >
-                {uploading ? 'Uploading...' : 'Upload photo'}
+                {uploading ? "Uploading..." : "Upload photo"}
               </button>
             </div>
           )}
@@ -321,9 +309,7 @@ function PhotoDashboard({ user, onSignOut }: PhotoDashboardProps) {
         </section>
       </main>
 
-      <footer className="footer">
-        © 2026 SnapShare. Share your moments.
-      </footer>
+      <footer className="footer">© 2026 SnapShare. Share your moments.</footer>
     </div>
   );
 }

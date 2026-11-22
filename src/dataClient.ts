@@ -1,8 +1,7 @@
-
-import { generateClient } from 'aws-amplify/api';
+import { generateClient } from "aws-amplify/api";
 
 const client = generateClient({
-  authMode: 'userPool',
+  authMode: "userPool",
 });
 
 export default client;

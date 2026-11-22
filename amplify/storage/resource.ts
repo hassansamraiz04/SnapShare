@@ -1,12 +1,9 @@
-
-import { defineStorage } from '@aws-amplify/backend';
+import { defineStorage } from "@aws-amplify/backend";
 
 export const storage = defineStorage({
-  name: 'snapSharePhotos',
+  name: "snapSharePhotos",
 
   access: (allow) => ({
-    'photos/*': [
-      allow.authenticated.to(['read', 'write']),
-    ],
+    "photos/*": [allow.authenticated.to(["read", "write"])],
   }),
 });

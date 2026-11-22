@@ -1,5 +1,3 @@
-
-
 type LoginProps = {
   onGoogleLogin: () => void;
 };
@@ -22,8 +20,8 @@ function Login({ onGoogleLogin }: LoginProps) {
             <h1>Every picture has a story worth sharing.</h1>
 
             <p>
-              Keep your favorite memories together and share
-              the moments that matter with SnapShare.
+              Keep your favorite memories together and share the moments that
+              matter with SnapShare.
             </p>
 
             <div className="feature-points">
@@ -42,14 +40,8 @@ function Login({ onGoogleLogin }: LoginProps) {
               Sign in to start sharing your moments.
             </p>
 
-            <button
-              className="google-button"
-              onClick={onGoogleLogin}
-            >
-              <img
-                src="https://www.google.com/favicon.ico"
-                alt=""
-              />
+            <button className="google-button" onClick={onGoogleLogin}>
+              <img src="https://www.google.com/favicon.ico" alt="" />
               Continue with Google
             </button>
 
@@ -60,9 +52,7 @@ function Login({ onGoogleLogin }: LoginProps) {
         </section>
       </main>
 
-      <footer className="footer">
-        © 2026 SnapShare. Share your moments.
-      </footer>
+      <footer className="footer">© 2026 SnapShare. Share your moments.</footer>
     </div>
   );
 }

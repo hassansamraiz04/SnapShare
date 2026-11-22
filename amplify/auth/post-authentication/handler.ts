@@ -1,9 +1,9 @@
-import type { PostAuthenticationTriggerHandler } from 'aws-lambda';
+import type { PostAuthenticationTriggerHandler } from "aws-lambda";
 import {
   CognitoIdentityProviderClient,
   AdminAddUserToGroupCommand,
-} from '@aws-sdk/client-cognito-identity-provider';
-import { env } from '$amplify/env/post-authentication';
+} from "@aws-sdk/client-cognito-identity-provider";
+import { env } from "$amplify/env/post-authentication";
 
 const client = new CognitoIdentityProviderClient();
 
